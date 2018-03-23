@@ -28,6 +28,10 @@ RUN apk update && \
         make
 ADD . /opt/sources
 WORKDIR /opt/sources
+RUN mkdir build && \
+    cd build && \
+    cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/tmp/opendlv-device-ultrasonic-srf08-dest .. && \
+    make && make install
 
 RUN [ "cross-build-end" ]
 
@@ -35,4 +39,5 @@ RUN [ "cross-build-end" ]
 FROM pipill/armhf-alpine:edge
 
 WORKDIR /usr/bin
-CMD ["/bin/bash"]
+COPY --from=builder /tmp/opendlv-device-ultrasonic-srf08-dest/ /usr/
+CMD ["/usr/bin/opendlv-device-ultrasonic-srf08"]
