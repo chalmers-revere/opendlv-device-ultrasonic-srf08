@@ -21,6 +21,7 @@
 #include <linux/i2c-dev.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include "cluon-complete.hpp"
 #include "opendlv-standard-message-set.hpp"
@@ -30,12 +31,14 @@ int32_t main(int32_t argc, char **argv) {
   auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
   if (0 == commandlineArguments.count("cid") || 0 == commandlineArguments.count("freq") || 0 == commandlineArguments.count("dev") || 0 == commandlineArguments.count("bus-address")) {
     std::cerr << argv[0] << " interfaces to an SRF02 ultrasonic distance sensor using i2c." << std::endl;
-    std::cerr << "Usage:   " << argv[0] << " --dev=<I2C device node> --bus-address=<Sensor address on the i2c bus> --freq=<Parse frequency> --cid=<OpenDaVINCI session> [--id=<ID if more than one sensor>] [--verbose]" << std::endl;
-    std::cerr << "Example: " << argv[0] << " --dev=/dev/i2c-0 --bus-address=0x70 --freq=10 --cid=111" << std::endl;
+    std::cerr << "Usage:   " << argv[0] << " --dev=<I2C device node> --bus-address=<Sensor address on the i2c bus, in decimal format> --freq=<Parse frequency> --cid=<OpenDaVINCI session> [--id=<ID if more than one sensor>] [--verbose]" << std::endl;
+    std::cerr << "Example: " << argv[0] << " --dev=/dev/i2c-0 --bus-address=112 --freq=10 --cid=111" << std::endl;
     retCode = 1;
   } else {
     uint32_t const ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
     bool const VERBOSE{commandlineArguments.count("verbose") != 0};
+    uint16_t const CID = std::stoi(commandlineArguments["cid"]);
+    float const FREQ = std::stof(commandlineArguments["freq"]);
 
     std::string const devNode = commandlineArguments["dev"];
     int16_t deviceFile = open(devNode.c_str(), O_RDWR);
@@ -46,10 +49,15 @@ int32_t main(int32_t argc, char **argv) {
 
     uint8_t const address = std::stoi(commandlineArguments["bus-address"]);
 
-    uint8_t parseFirmwareBuffer[2];
-    parseFirmwareBuffer[0] = address;
-    parseFirmwareBuffer[1] = 0x00;
-    uint8_t status = write(deviceFile, parseFirmwareBuffer, 2);
+    int8_t status = ioctl(deviceFile, I2C_SLAVE, address);
+    if (status < 0) {
+      std::cerr << "Could not acquire bus access for device " << devNode << "." << std::endl;
+      return 1;
+    }
+
+    uint8_t parseFirmwareBuffer[1];
+    parseFirmwareBuffer[0] = 0x00;
+    status = write(deviceFile, parseFirmwareBuffer, 1);
     if (status != 1) {
       std::cerr << "Could not write firmware request to device on " << devNode << "." << std::endl;
       return 1;
@@ -62,66 +70,61 @@ int32_t main(int32_t argc, char **argv) {
       return 1;
     }
 
-    std::cout << "Connected with the SRF08 device on " << devNode << ". Reported firmware " << firmwareBuffer[0] << "." << std::endl;
+    std::cout << "Connected with the SRF08 device on " << devNode << ". Reported firmware version '" << static_cast<int32_t>(firmwareBuffer[0]) << "'." << std::endl;
 
-    uint8_t commandBuffer[3];
-    commandBuffer[0] = address;
-    commandBuffer[1] = 0x00;
-    commandBuffer[2] = 0x51;
+    cluon::OD4Session od4{CID};
 
-    uint8_t parseRangeBuffer[2];
-    parseRangeBuffer[0] = address;
+    uint8_t commandBuffer[2];
+    commandBuffer[0] = 0x00;
+    commandBuffer[1] = 0x51;
 
-    uint8_t rangeBuffer[2];
+    auto atFrequency{[&deviceFile, &commandBuffer, &ID, &VERBOSE, &od4]() -> bool
+      {
+        uint8_t rangeHiReg{0x02};
+        uint8_t rangeLoReg{0x03};
+        uint8_t lightSensorReg{0x01};
+	    
+        uint8_t rangeHi;
+        uint8_t rangeLo;
+        uint8_t lightSensor;
 
-    cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"])), [](auto){}};
+        uint8_t res = write(deviceFile, commandBuffer, 2);
+        if (res != 2) {
+          std::cerr << "Could not write ranging request." << std::endl;
+          return false;
+        }
 
-    double dt = 1.0 / std::stoi(commandlineArguments["freq"]);
-    while (od4.isRunning()) {
-      std::this_thread::sleep_for(std::chrono::duration<double>(dt));
+        std::this_thread::sleep_for(std::chrono::duration<double>(0.07));
 
-      status = write(deviceFile, commandBuffer, 3);
-      if (status != 1) {
-        std::cerr << "Could not write ranging request." << std::endl;
-      }
+        res = write(deviceFile, &rangeHiReg, 1);
+        res += read(deviceFile, &rangeHi, 1);
+        res += write(deviceFile, &rangeLoReg, 1);
+        res += read(deviceFile, &rangeLo, 1);
+        res += write(deviceFile, &lightSensorReg, 1);
+        res += read(deviceFile, &lightSensor, 1);
+        if (res != 6) {
+          std::cerr << "Could not read data." << std::endl;
+          return false;
+        }
 
-      uint32_t rangeCount = 0;
-      uint32_t sumRangeCm = 0;
-      for (uint32_t i = 0; i < 16; i++) {
-        parseRangeBuffer[1] = 2 + i * 2;
-        status = write(deviceFile, parseRangeBuffer, 2);
-        status += read(deviceFile, rangeBuffer, 1);
+        uint32_t rangeCm = (rangeHi << 8) + rangeLo;
+        float distance = static_cast<float>(rangeCm) / 100.0f;
 
-        parseRangeBuffer[1] = 2 + i * 2 + 1;
-        status += write(deviceFile, parseRangeBuffer, 2);
-        status += read(deviceFile, rangeBuffer + 1, 1);
+        float lumen = static_cast<float>(lightSensor) / 248.0f * 1000.0f;
+
+        opendlv::proxy::DistanceReading distanceReading;
+        distanceReading.distance(distance);
+
+        cluon::data::TimeStamp sampleTime;
+        od4.send(distanceReading, sampleTime, ID);
+        if (VERBOSE) {
+          std::cout << "SRF08 distance reading is " << distanceReading.distance() << " m. Brightness is " << lumen << " lumen." << std::endl;
+        }
         
-        if (status != 4) {
-          std::cerr << "Could not read range." << std::endl;
-          return 1;
-        }
+        return true;
+      }};
 
-        uint32_t rangeCm = (rangeBuffer[0] << 8) + rangeBuffer[1];
-        if (rangeCm == 0) {
-          break;
-        }
-
-        sumRangeCm += rangeCm;
-        rangeCount++;
-        std::cout << rangeCm << std::endl;
-      }
-
-      float distance = static_cast<float>(0.01f * sumRangeCm / rangeCount);
-
-      opendlv::proxy::DistanceReading distanceReading;
-      distanceReading.distance(distance);
-
-      cluon::data::TimeStamp sampleTime;
-      od4.send(distanceReading, sampleTime, ID);
-      if (VERBOSE) {
-        std::cout << "Sensor reading is " << distanceReading.distance() << " m." << std::endl;
-      }
-    }
+    od4.timeTrigger(FREQ, atFrequency);
   }
   return retCode;
 }
