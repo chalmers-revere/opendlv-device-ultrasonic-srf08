@@ -78,11 +78,11 @@ int32_t main(int32_t argc, char **argv) {
     commandBuffer[0] = 0x00;
     commandBuffer[1] = 0x51;
 
-    uint8_t res = write(deviceFile, commandBuffer, 2);
-    if (res != 2) {
+    uint8_t result = write(deviceFile, commandBuffer, 2);
+    if (result != 2) {
       std::cerr << "Could not write ranging request." << std::endl;
     }
-    auto atFrequency{[&deviceFile, &commandBuffer, &ID, &VERBOSE, &od4]() -> bool
+    auto atFrequency{[&deviceFile, &ID, &VERBOSE, &od4]() -> bool
       {
         uint8_t rangeHiReg{0x02};
         uint8_t rangeLoReg{0x03};
@@ -92,8 +92,7 @@ int32_t main(int32_t argc, char **argv) {
         uint8_t rangeLo;
         uint8_t lightSensor;
 
-
-        res = write(deviceFile, &rangeHiReg, 1);
+        uint8_t res = write(deviceFile, &rangeHiReg, 1);
         res += read(deviceFile, &rangeHi, 1);
         res += write(deviceFile, &rangeLoReg, 1);
         res += read(deviceFile, &rangeLo, 1);
