@@ -92,9 +92,14 @@ include_directories(SYSTEM ${CMAKE_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 ################################################################################
+# Find ncurse
+find_package( Curses REQUIRED )
+include_directories( ${CURSES_INCLUDE_DIRS} )
+
+################################################################################
 # Gather all object code first to avoid double compilation.
 add_library(${PROJECT_NAME}-core OBJECT  ${CMAKE_BINARY_DIR}/opendlv-standard-message-set.cpp)
-set(LIBRARIES Threads::Threads)
+set(LIBRARIES Threads::Threads ${CURSES_LIBRARIES})
 
 ################################################################################
 # Create executable.

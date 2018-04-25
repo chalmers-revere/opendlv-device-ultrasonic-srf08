@@ -16,6 +16,8 @@
  */
 
 #include <fstream>
+#include <sstream>
+#include <ncurses.h>
 #include <vector>
 
 #include <linux/i2c-dev.h>
@@ -36,7 +38,10 @@ int32_t main(int32_t argc, char **argv) {
     retCode = 1;
   } else {
     uint32_t const ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
-    bool const VERBOSE{commandlineArguments.count("verbose") != 0};
+    int32_t VERBOSE{commandlineArguments.count("verbose") != 0};
+    if (VERBOSE) {
+      VERBOSE = std::stoi(commandlineArguments["verbose"]);
+    }
     uint16_t const CID = std::stoi(commandlineArguments["cid"]);
     float const FREQ = std::stof(commandlineArguments["freq"]);
 
@@ -74,68 +79,70 @@ int32_t main(int32_t argc, char **argv) {
 
     cluon::OD4Session od4{CID};
 
-    uint8_t commandBuffer[2];
-    commandBuffer[0] = 0x00;
-    commandBuffer[1] = 0x51;
-
-    uint8_t result = write(deviceFile, commandBuffer, 2);
-    if (result != 2) {
-      std::cerr << "Could not write ranging request." << std::endl;
-      return false;
+    if (VERBOSE == 2) {
+      initscr();
     }
-
-
-    std::this_thread::sleep_for(std::chrono::duration<double>(0.07));
-    auto atFrequency{[&deviceFile, &commandBuffer, &ID, &VERBOSE, &od4]() -> bool
+    auto atFrequency{[&deviceFile, &ID, &VERBOSE, &od4]() -> bool
       {
-        uint8_t rangeHiReg1{0x02};
-        uint8_t rangeLoReg1{0x03};
-        uint8_t rangeHiReg2{0x04};
-        uint8_t rangeLoReg2{0x05};
-        uint8_t lightSensorReg{0x01};
+        uint8_t commandBuffer[2];
+        commandBuffer[0] = 0x00;
+        commandBuffer[1] = 0x51;
+
+        uint8_t res = write(deviceFile, commandBuffer, 2);
+        if (res != 2) {
+          std::cerr << "Could not write ranging request." << std::endl;
+          return false;
+        }
+        std::this_thread::sleep_for(std::chrono::duration<double>(0.07));
+        
+        uint8_t data{0x01};
       
-        uint8_t rangeHi1;
-        uint8_t rangeLo1;
-        uint8_t rangeHi2;
-        uint8_t rangeLo2;
-        uint8_t lightSensor;
+        uint8_t buffer[35];
 
-
-        uint8_t res = write(deviceFile, &rangeHiReg1, 1);
-        res += read(deviceFile, &rangeHi1, 1);
-        res += write(deviceFile, &rangeLoReg1, 1);
-        res += read(deviceFile, &rangeLo1, 1);
-        res += write(deviceFile, &rangeHiReg2, 1);
-        res += read(deviceFile, &rangeHi2, 1);
-        res += write(deviceFile, &rangeLoReg2, 1);
-        res += read(deviceFile, &rangeLo2, 1);
-        res += write(deviceFile, &lightSensorReg, 1);
-        res += read(deviceFile, &lightSensor, 1);
-        if (res != 10) {
+        res = write(deviceFile, &data, 1);
+        res += read(deviceFile, &buffer, 35);
+        if (res != 36) {
           std::cerr << "Could not read data." << std::endl;
           return false;
         }
+        // float lumen = static_cast<float>(data[0]) / 248.0f * 1000.0f;
 
-        uint32_t rangeCm1 = (rangeHi1 << 8) + rangeLo1;
-        float distance1 = static_cast<float>(rangeCm1) / 100.0f;
-        uint32_t rangeCm2 = (rangeHi2 << 8) + rangeLo2;
-        float distance2 = static_cast<float>(rangeCm2) / 100.0f;
-
-        float lumen = static_cast<float>(lightSensor) / 248.0f * 1000.0f;
-
-        opendlv::proxy::DistanceReading distanceReading;
-        distanceReading.distance(distance1);
-
-        cluon::data::TimeStamp sampleTime;
-        od4.send(distanceReading, sampleTime, ID);
-        if (VERBOSE) {
-          std::cout << "SRF08 distance reading is " << distanceReading.distance() << " and " << distance2 << "m. Brightness is " << lumen << " lumen." << std::endl;
+        std::vector<float> val;
+        for (uint8_t i = 0; i < 33; i+=2){
+          if (buffer[i+1] == 0 && buffer[i+2] == 0) {
+            break;
+          }
+          uint32_t rangeCm = (buffer[i+1] << 8) + buffer[i+2];
+          val.push_back(static_cast<float>(rangeCm / 100.0f)); 
         }
+
+
+        // opendlv::proxy::DistanceReading distanceReading;
+        // distanceReading.distance(distance1);
+
+        // cluon::data::TimeStamp sampleTime;
+        // od4.send(distanceReading, sampleTime, ID);
+        if (VERBOSE == 1) {
+          // std::cout << "SRF08 distance reading is " << distanceReading.distance() << " and " << distance2 << "m. Brightness is " << lumen << " lumen." << std::endl;
+          // std::cout << "Measured:"
+        }
+
+      if (VERBOSE == 2) {
+        std::stringstream ss;
+        for (uint8_t i = 0; i < val.size(); i++) {
+          ss << i << ": " << val.at(i) << std::endl;
+        }
+        mvprintw(1,1,ss.str().c_str()); 
+        refresh();      /* Print it on to the real screen */
+      }
         
         return true;
       }};
 
     od4.timeTrigger(FREQ, atFrequency);
+    if (VERBOSE == 2) {
+      endwin();     /* End curses mode      */
+    }
   }
   return retCode;
 }
