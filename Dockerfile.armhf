@@ -43,6 +43,13 @@ RUN [ "cross-build-end" ]
 
 FROM pipill/armhf-alpine:edge
 
+RUN [ "cross-build-start" ]
+
+RUN apk update && \
+    apk --no-cache add \
+    ncurses-dev 
+RUN [ "cross-build-end" ]
+
 WORKDIR /usr/bin
 COPY --from=builder /tmp/build-dest/ /usr/
 CMD ["/usr/bin/opendlv-device-ultrasonic-srf08"]
