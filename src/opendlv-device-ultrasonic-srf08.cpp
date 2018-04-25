@@ -81,40 +81,55 @@ int32_t main(int32_t argc, char **argv) {
     uint8_t result = write(deviceFile, commandBuffer, 2);
     if (result != 2) {
       std::cerr << "Could not write ranging request." << std::endl;
+      return false;
     }
-    auto atFrequency{[&deviceFile, &ID, &VERBOSE, &od4]() -> bool
+
+
+    std::this_thread::sleep_for(std::chrono::duration<double>(0.07));
+    auto atFrequency{[&deviceFile, &commandBuffer, &ID, &VERBOSE, &od4]() -> bool
       {
-        uint8_t rangeHiReg{0x02};
-        uint8_t rangeLoReg{0x03};
+        uint8_t rangeHiReg1{0x02};
+        uint8_t rangeLoReg1{0x03};
+        uint8_t rangeHiReg2{0x04};
+        uint8_t rangeLoReg2{0x05};
         uint8_t lightSensorReg{0x01};
       
-        uint8_t rangeHi;
-        uint8_t rangeLo;
+        uint8_t rangeHi1;
+        uint8_t rangeLo1;
+        uint8_t rangeHi2;
+        uint8_t rangeLo2;
         uint8_t lightSensor;
 
-        uint8_t res = write(deviceFile, &rangeHiReg, 1);
-        res += read(deviceFile, &rangeHi, 1);
-        res += write(deviceFile, &rangeLoReg, 1);
-        res += read(deviceFile, &rangeLo, 1);
+
+        uint8_t res = write(deviceFile, &rangeHiReg1, 1);
+        res += read(deviceFile, &rangeHi1, 1);
+        res += write(deviceFile, &rangeLoReg1, 1);
+        res += read(deviceFile, &rangeLo1, 1);
+        res += write(deviceFile, &rangeHiReg2, 1);
+        res += read(deviceFile, &rangeHi2, 1);
+        res += write(deviceFile, &rangeLoReg2, 1);
+        res += read(deviceFile, &rangeLo2, 1);
         res += write(deviceFile, &lightSensorReg, 1);
         res += read(deviceFile, &lightSensor, 1);
-        if (res != 6) {
+        if (res != 10) {
           std::cerr << "Could not read data." << std::endl;
           return false;
         }
 
-        uint32_t rangeCm = (rangeHi << 8) + rangeLo;
-        float distance = static_cast<float>(rangeCm) / 100.0f;
+        uint32_t rangeCm1 = (rangeHi1 << 8) + rangeLo1;
+        float distance1 = static_cast<float>(rangeCm1) / 100.0f;
+        uint32_t rangeCm2 = (rangeHi2 << 8) + rangeLo2;
+        float distance2 = static_cast<float>(rangeCm2) / 100.0f;
 
         float lumen = static_cast<float>(lightSensor) / 248.0f * 1000.0f;
 
         opendlv::proxy::DistanceReading distanceReading;
-        distanceReading.distance(distance);
+        distanceReading.distance(distance1);
 
         cluon::data::TimeStamp sampleTime;
         od4.send(distanceReading, sampleTime, ID);
         if (VERBOSE) {
-          std::cout << "SRF08 distance reading is " << distanceReading.distance() << " m. Brightness is " << lumen << " lumen." << std::endl;
+          std::cout << "SRF08 distance reading is " << distanceReading.distance() << " and " << distance2 << "m. Brightness is " << lumen << " lumen." << std::endl;
         }
         
         return true;
