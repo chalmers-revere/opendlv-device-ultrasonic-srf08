@@ -78,23 +78,20 @@ int32_t main(int32_t argc, char **argv) {
     commandBuffer[0] = 0x00;
     commandBuffer[1] = 0x51;
 
+    uint8_t res = write(deviceFile, commandBuffer, 2);
+    if (res != 2) {
+      std::cerr << "Could not write ranging request." << std::endl;
+    }
     auto atFrequency{[&deviceFile, &commandBuffer, &ID, &VERBOSE, &od4]() -> bool
       {
         uint8_t rangeHiReg{0x02};
         uint8_t rangeLoReg{0x03};
         uint8_t lightSensorReg{0x01};
-	    
+      
         uint8_t rangeHi;
         uint8_t rangeLo;
         uint8_t lightSensor;
 
-        uint8_t res = write(deviceFile, commandBuffer, 2);
-        if (res != 2) {
-          std::cerr << "Could not write ranging request." << std::endl;
-          return false;
-        }
-
-        std::this_thread::sleep_for(std::chrono::duration<double>(0.07));
 
         res = write(deviceFile, &rangeHiReg, 1);
         res += read(deviceFile, &rangeHi, 1);
