@@ -26,6 +26,7 @@ RUN apk update && \
     cmake \
     g++ \
     make \
+    ncurses-dev \
     linux-headers
 
 RUN apk add libcluon --no-cache --repository https://chrberger.github.io/libcluon/alpine/v3.7 --allow-untrusted
