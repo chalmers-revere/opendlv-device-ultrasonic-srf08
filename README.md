@@ -9,8 +9,8 @@ OpenDLV Microservice to interface with a Devantech SRF08 Ultrasonic Range Finder
 * [License](#license)
 
 ## Dependencies
-No dependencies! You just need a C++14-compliant compiler to compile this
-project as it ships the following dependencies as part of the source distribution:
+You need a C++14-compliant compiler to compile this project. This repository
+ships the following dependencies as part of the source distribution:
 
 * [libcluon](https://github.com/chrberger/libcluon) - [![License: GPLv3](https://img.shields.io/badge/license-GPL--3-blue.svg
 )](https://www.gnu.org/licenses/gpl-3.0.txt)
