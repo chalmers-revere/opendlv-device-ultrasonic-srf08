@@ -89,7 +89,8 @@ int32_t main(int32_t argc, char **argv) {
     uint8_t buf[2];
     buf[0] = 0x02;
     buf[1] = range;
-
+    
+    /* Reducing echo listening time, and thus range to 43mm * buf[1] - max/default is 65ms which is approx. 11m */
     uint8_t test = write(deviceFile, buf, 2);
     if(test != 2) {
       std::cout << "Error in changing the range." << std::endl;
@@ -97,6 +98,9 @@ int32_t main(int32_t argc, char **argv) {
 
     buf[0] = 0x01;
     buf[1] = gain;
+    
+    /*Reducing rate of echos fired by sensor to lower/higher than default value of 65ms
+    This can lead to false readings if echos from previous pings are too fast */
     test = write(deviceFile, buf, 2);
     if(test != 2) {
       std::cout << "Error in changing the gain." << std::endl;
@@ -109,9 +113,10 @@ int32_t main(int32_t argc, char **argv) {
     auto atFrequency{[&deviceFile, &ID, &VERBOSE, &od4]() -> bool
       {
         uint8_t commandBuffer[2];
-        commandBuffer[0] = 0x00;
+        commandBuffer[0] = 0x00;  /* SRF08 Command Register */
         commandBuffer[1] = 0x51;
-
+        
+        /* By writing 0x51 to the Command Register, the Ranging Mode will be in centimeters */
         uint8_t res = write(deviceFile, commandBuffer, 2);
         if (res != 2) {
           std::cerr << "Could not write ranging request." << std::endl;
@@ -119,12 +124,11 @@ int32_t main(int32_t argc, char **argv) {
         }
         std::this_thread::sleep_for(std::chrono::duration<double>(0.07));
         
-        uint8_t data{0x02};
-      
-        uint8_t buffer[34];
+        uint8_t data{0x02}; /* SRF08 Range Register */
+        uint8_t buffer[34]; /* Array of bytes, need to store 17 pairs of Echo High & Low Bytes */
 
-        res = write(deviceFile, &data, 1);
-        res += read(deviceFile, &buffer, 34);
+        res = write(deviceFile, &data, 1);    /* Write to the Range Register to shorten ranging time */
+        res += read(deviceFile, &buffer, 34); /* Read 1st to 17th Echo High & Low Byte */
         if (res != 35) {
           std::cerr << "Could not read data." << std::endl;
           return false;
@@ -132,11 +136,13 @@ int32_t main(int32_t argc, char **argv) {
         // float lumen = static_cast<float>(data[0]) / 248.0f * 1000.0f;
         std::vector<float> val;
         for (uint8_t i = 0; i < 33; i+=2){
+          /* One result from a ranging request is a 16 bit unsigned integer, high byte first
+          A value of zero means no objects were detected */
           if (buffer[i] == 0 && buffer[i+1] == 0) {
             break;
           }
           uint16_t rangeCm = (buffer[i] << 8) | buffer[i+1];
-          val.push_back(static_cast<float>(rangeCm) / 100.0f); 
+          val.push_back(static_cast<float>(rangeCm) / 100.0f); /* Convert result in centimeters to meters */
         }
 
         if (!val.empty()) {
