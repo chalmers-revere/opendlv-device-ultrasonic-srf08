@@ -13,7 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+FROM multiarch/qemu-user-static:x86_64-arm as qemu
+
 FROM armhf/alpine:edge as builder
+COPY --from=qemu /usr/bin/qemu-arm-static /usr/bin
 
 # RUN [ "cross-build-start" ]
 
@@ -45,6 +48,7 @@ RUN rm -rf build && \
 
 FROM armhf/alpine:edge
 
+COPY --from=qemu /usr/bin/qemu-arm-static /usr/bin
 # RUN [ "cross-build-start" ]
 
 RUN apk update && \
