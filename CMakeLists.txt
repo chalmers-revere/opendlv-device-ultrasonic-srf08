@@ -1,5 +1,5 @@
-# Copyright (C) 2018 Ola Benderius
-#
+# Copyright (C) 2020 Björnborg Nguyen
+
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -25,7 +25,7 @@ project(opendlv-device-ultrasonic-srf08)
 
 ################################################################################
 # Defining the relevant versions of OpenDLV Standard Message Set and libcluon.
-set(OPENDLV_STANDARD_MESSAGE_SET opendlv-standard-message-set-v0.9.9.odvd)
+set(OPENDLV_STANDARD_MESSAGE_SET opendlv-standard-message-set-v0.9.10.odvd)
 set(CLUON_COMPLETE cluon-complete-v0.0.127.hpp)
 
 ################################################################################
