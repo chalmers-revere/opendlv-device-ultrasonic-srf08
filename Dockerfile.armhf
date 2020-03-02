@@ -1,5 +1,5 @@
-# Copyright (C) 2018 Ola Benderius
-#
+# Copyright (C) 2020 Björnborg Nguyen
+
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -47,6 +47,7 @@ RUN rm -rf build && \
 
 
 FROM armhf/alpine:edge
+LABEL authors="Björnborg Nguyen <bjornborg.nguyen@chalmers.se>"
 
 COPY --from=qemu /usr/bin/qemu-arm-static /usr/bin
 # RUN [ "cross-build-start" ]
