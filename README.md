@@ -1,3 +1,5 @@
+Moved to https://git.opendlv.org.
+
 # opendlv-device-ultrasonic-srf08
 OpenDLV Microservice to interface with a Devantech SRF08 Ultrasonic Range Finder over i2c.
 
